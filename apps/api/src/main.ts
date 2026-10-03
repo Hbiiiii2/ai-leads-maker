@@ -12,7 +12,11 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.enableCors({ origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000" });
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  app.enableCors({
+    origin: [appUrl, "http://localhost", "http://localhost:3000", "http://192.168.1.125"].filter(Boolean) as string[],
+    credentials: true,
+  });
 
   const config = new DocumentBuilder()
     .setTitle("Prospex API")

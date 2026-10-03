@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/packages/database ./packages/database
@@ -39,9 +40,11 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
 
 # Install Playwright Chromium browser
-RUN pnpm --filter @prospex/api exec playwright install chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN pnpm --filter @prospex/api exec playwright install chromium && chmod -R 777 /ms-playwright
 
 RUN addgroup --system prospex && adduser --system --ingroup prospex prospex
+RUN chown -R prospex:prospex /app
 USER prospex
 
 WORKDIR /app/apps/api

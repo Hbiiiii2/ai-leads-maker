@@ -36,11 +36,22 @@ export class LeadsController {
     });
   }
 
+  @Get("pipeline-stats")
+  @ApiOperation({ summary: "Get CRM pipeline overview statistics" })
+  @ApiQuery({ name: "campaignId", required: false })
+  getPipelineStats(
+    @WorkspaceId() workspaceId: string,
+    @Query("campaignId") campaignId?: string,
+  ) {
+    return this.leadsService.getPipelineStats(workspaceId, campaignId);
+  }
+
   @Get(":id")
   @ApiOperation({ summary: "Get lead by ID" })
   findOne(@Param("id") id: string, @WorkspaceId() workspaceId: string) {
     return this.leadsService.findOne(id, workspaceId);
   }
+
 
   @Patch(":id/crm")
   @ApiOperation({ summary: "Update CRM status for a lead" })

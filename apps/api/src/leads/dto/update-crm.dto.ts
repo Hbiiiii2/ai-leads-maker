@@ -9,5 +9,13 @@ export class UpdateCrmDto {
   @IsString() @IsOptional()
   crmStatus?: string;
 
-  @ApiProperty({ required: false }) @IsOptional() @IsString() crmNotes?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString()
+  crmNotes?: string;
+
+  @ApiProperty({ required: false }) @IsOptional() @IsString()
+  followUpDate?: string;
+
+  @ApiProperty({ required: false }) @IsOptional() @IsString()
+  closeResult?: string;
 }
+

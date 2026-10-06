@@ -47,6 +47,8 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       PORT: 3001
       NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost}
+      TWENTY_CRM_URL: ${TWENTY_CRM_URL:-}
+      TWENTY_CRM_API_KEY: ${TWENTY_CRM_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

@@ -14,6 +14,7 @@ import { SettingsModule } from "./settings/settings.module";
 import { ExportModule } from "./export/export.module";
 import { AuthModule } from "./auth/auth.module";
 import { WorkspaceModule } from "./workspace/workspace.module";
+import { IntegrationsModule } from "./integrations/integrations.module";
 
 @Module({
   imports: [
@@ -33,6 +34,8 @@ import { WorkspaceModule } from "./workspace/workspace.module";
         THROTTLE_TTL_MS: Joi.number().default(60000),
         THROTTLE_LIMIT: Joi.number().default(60),
         AUTH_THROTTLE_LIMIT: Joi.number().default(10),
+        TWENTY_CRM_URL: Joi.string().allow("").default("http://192.168.1.125:3020"),
+        TWENTY_CRM_API_KEY: Joi.string().allow("").default(""),
       }),
       validationOptions: { abortEarly: true },
     }),
@@ -52,6 +55,7 @@ import { WorkspaceModule } from "./workspace/workspace.module";
     ExportModule,
     AuthModule,
     WorkspaceModule,
+    IntegrationsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -6,6 +6,7 @@ import { LeadsService } from "../leads/leads.service";
 import { LeadIntelligenceService } from "../ai/lead-intelligence.service";
 import { MarketingAiService } from "../ai/marketing-ai.service";
 import { GoogleMapsScraperService } from "./google-maps.scraper";
+import { TwentyCrmService } from "../integrations/twenty-crm.service";
 
 export interface ScraperJobData {
   campaignId: string;
@@ -30,6 +31,7 @@ export class ScraperProcessor extends WorkerHost {
     private leadIntelligence: LeadIntelligenceService,
     private marketingAi: MarketingAiService,
     private googleMaps: GoogleMapsScraperService,
+    private twentyCrm: TwentyCrmService,
   ) {
     super();
   }
@@ -57,7 +59,7 @@ export class ScraperProcessor extends WorkerHost {
 
       const processedLeads = await Promise.all(
         scoredLeads.map(async (lead, i) => {
-          let marketingContent = null;
+          let marketingContent: any = null;
           if (lead.priority === "HIGH") {
             try {
               marketingContent = await this.marketingAi.generateContent({
@@ -75,6 +77,21 @@ export class ScraperProcessor extends WorkerHost {
               this.logger.warn(`Content gen failed for ${lead.name}: ${e}`);
             }
           }
+
+          if (!marketingContent) {
+            marketingContent = this.marketingAi.generateMockContent({
+              businessName: lead.name,
+              address: lead.address,
+              industry: data.industry,
+              rating: lead.rating,
+              hasWebsite: lead.hasWebsite,
+              yourService: data.yourService,
+              contentStyle: data.contentStyle,
+              language: data.language,
+              score: lead.score,
+            });
+          }
+
           if (i % 5 === 0) {
             const pct = 60 + Math.round((i / total) * 35);
             await this.campaigns.updateStatus(campaignId, "running", pct);
@@ -117,6 +134,18 @@ export class ScraperProcessor extends WorkerHost {
 
       await this.campaigns.updateStatus(campaignId, "completed", 100);
       this.logger.log(`Campaign ${campaignId} done: ${total} leads, ${priority} priority`);
+
+      // Auto-sync to Twenty CRM if configured
+      try {
+        const creds = await this.twentyCrm.getCredentials(workspaceId);
+        if (creds?.apiKey) {
+          this.logger.log(`Auto-syncing leads to Twenty CRM for campaign ${campaignId}...`);
+          const syncRes = await this.twentyCrm.syncCampaignLeads(campaignId, workspaceId);
+          this.logger.log(`Twenty CRM auto-sync completed: ${syncRes.synced}/${syncRes.total} leads synced.`);
+        }
+      } catch (crmErr) {
+        this.logger.warn(`Twenty CRM auto-sync skipped/failed: ${crmErr}`);
+      }
     } catch (err) {
       this.logger.error(`Campaign ${campaignId} failed: ${err}`);
       await this.campaigns.updateStatus(campaignId, "failed", undefined, String(err));

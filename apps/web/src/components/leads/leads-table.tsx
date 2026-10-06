@@ -1,10 +1,12 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Phone, Globe, MapPin, Star, ChevronRight, Users } from "lucide-react";
+import { Phone, Globe, MapPin, Star, ChevronRight, Users, MessageCircle, Sparkles } from "lucide-react";
+import { WhatsAppOutreachModal } from "@/components/crm/whatsapp-outreach-modal";
 import type { Lead } from "@/hooks/use-leads";
 
 const container = {
@@ -38,10 +40,14 @@ function CrmBadge({ status }: { status: Lead["crmStatus"] }) {
 interface Props {
   leads: Lead[];
   loading: boolean;
+  onRefresh?: () => void;
 }
 
-export function LeadsTable({ leads, loading }: Props) {
+export function LeadsTable({ leads, loading, onRefresh }: Props) {
+  const [selectedLeadForWa, setSelectedLeadForWa] = useState<Lead | null>(null);
+
   if (loading) {
+
     return (
       <div className="divide-y">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -96,9 +102,23 @@ export function LeadsTable({ leads, loading }: Props) {
               {lead.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" />{lead.website}</span>}
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {lead.phone && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs px-2 gap-1 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedLeadForWa(lead);
+                }}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Kirim WA</span>
+              </Button>
+            )}
             {lead.rating && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground hidden md:flex">
                 <Star className="w-3 h-3 text-warning" />{lead.rating}
                 {lead.reviewCount != null && ` (${lead.reviewCount})`}
               </span>
@@ -113,6 +133,14 @@ export function LeadsTable({ leads, loading }: Props) {
           </div>
         </motion.div>
       ))}
+
+      <WhatsAppOutreachModal
+        lead={selectedLeadForWa}
+        open={!!selectedLeadForWa}
+        onOpenChange={(open) => !open && setSelectedLeadForWa(null)}
+        onSuccess={() => onRefresh?.()}
+      />
     </motion.div>
   );
 }
+

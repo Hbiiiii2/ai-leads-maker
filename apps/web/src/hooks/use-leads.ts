@@ -16,25 +16,46 @@ export interface Lead {
   priority: "HIGH" | "MEDIUM" | "LOW";
   crmStatus: "new" | "contacted" | "replied" | "meeting" | "proposal" | "won" | "lost";
   crmNotes?: string;
+  contactedAt?: string | null;
+  followUpDate?: string | null;
+  repliedAt?: string | null;
+  closedAt?: string | null;
+  closeResult?: string | null;
   hasWebsite: boolean;
   industry?: string;
   category?: string;
   campaignId: string;
-  campaign?: { id: string; name: string };
+  campaign?: { id: string; name: string; industry?: string; yourService?: string };
   marketingContent?: {
     email?: { subject: string; body: string };
     whatsapp?: string;
     instagram?: string;
     linkedin?: { connectionNote: string };
     coldCall?: { opening: string };
+    whatsappStatus?: "ready" | "sent" | "failed";
+    whatsappSentAt?: string;
+    whatsappError?: string;
+    whatsappProvider?: string;
   };
   aiAnalysis?: {
     factors?: string[];
     recommendation?: string;
   };
-  activities?: Array<{ id: string; type: string; note: string; createdAt: string }>;
+  activities?: Array<{ id: string; type: string; note: string; createdAt: string; metadata?: any }>;
   scrapedAt: string;
   createdAt: string;
+}
+
+export interface PipelineStats {
+  total: number;
+  new: number;
+  contacted: number;
+  replied: number;
+  meeting: number;
+  proposal: number;
+  won: number;
+  lost: number;
+  whatsappSentCount: number;
 }
 
 interface PaginatedLeads {
@@ -43,6 +64,7 @@ interface PaginatedLeads {
   page: number;
   limit: number;
 }
+
 
 interface LeadFilter {
   campaignId?: string;
@@ -107,3 +129,25 @@ export function useLead(id: string) {
   useEffect(() => { refresh(); }, [refresh]);
   return { lead, loading, error, refresh };
 }
+
+export function usePipelineStats(campaignId?: string) {
+  const [stats, setStats] = useState<PipelineStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      const url = campaignId ? `/leads/pipeline-stats?campaignId=${campaignId}` : "/leads/pipeline-stats";
+      const data = await api.get<PipelineStats>(url);
+      setStats(data);
+    } catch (e) {
+      console.error("Failed to load pipeline stats:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  return { stats, loading, refresh };
+}
+

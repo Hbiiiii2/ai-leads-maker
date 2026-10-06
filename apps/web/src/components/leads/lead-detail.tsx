@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Phone, Globe, MapPin, Star, Mail, MessageCircle, Loader2, Copy, Instagram } from "lucide-react";
+import { ArrowLeft, Phone, Globe, MapPin, Star, Mail, MessageCircle, Loader2, Copy, Instagram, Share2, Sparkles, Send, CheckCircle2, Clock } from "lucide-react";
 import { useLead } from "@/hooks/use-leads";
+import { WhatsAppOutreachModal } from "@/components/crm/whatsapp-outreach-modal";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 const container = {
   hidden: { opacity: 0 },
@@ -24,18 +29,59 @@ const item = {
 export function LeadDetail({ id }: { id: string }) {
   const { lead, loading, refresh } = useLead(id);
   const [crmStatus, setCrmStatus] = useState<string | null>(null);
+  const [crmNotes, setCrmNotes] = useState<string>("");
+  const [followUpDate, setFollowUpDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [syncingTwenty, setSyncingTwenty] = useState(false);
+  const [waModalOpen, setWaModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (lead) {
+      setCrmStatus(lead.crmStatus);
+      setCrmNotes(lead.crmNotes || "");
+      if (lead.followUpDate) {
+        setFollowUpDate(lead.followUpDate.split("T")[0]);
+      }
+    }
+  }, [lead]);
 
   const handleCrmUpdate = async () => {
-    if (!crmStatus || !lead) return;
+    if (!lead) return;
     setSaving(true);
     try {
-      await api.patch(`/leads/${id}/crm`, { crmStatus });
+      await api.patch(`/leads/${id}/crm`, {
+        crmStatus: crmStatus || lead.crmStatus,
+        crmNotes,
+        followUpDate: followUpDate || undefined,
+      });
       await refresh();
-    } catch (e) {
+      toast.success("CRM status dan catatan berhasil diperbarui");
+    } catch (e: any) {
+      toast.error(e.message || "Gagal memperbarui status CRM");
       console.error("CRM update failed:", e);
     } finally {
       setSaving(false);
+    }
+  };
+
+
+  const handleSyncTwenty = async () => {
+    setSyncingTwenty(true);
+    try {
+      const res = await api.post<{ success: boolean; companyId?: string; error?: string }>(
+        `/integrations/twenty/sync-lead/${id}`,
+        {}
+      );
+      if (res.success) {
+        toast.success("Lead successfully synced to Twenty CRM!");
+        await refresh();
+      } else {
+        toast.error(res.error || "Failed to sync to Twenty CRM");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to sync to Twenty CRM. Check your settings.");
+    } finally {
+      setSyncingTwenty(false);
     }
   };
 
@@ -165,12 +211,37 @@ export function LeadDetail({ id }: { id: string }) {
                   <>
                     <Separator />
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <MessageCircle className="w-4 h-4 text-success" />
-                        <span className="text-sm font-medium">WhatsApp</span>
-                        <Button variant="ghost" size="sm" className="ml-auto h-6 text-xs opacity-60 hover:opacity-100" onClick={() => navigator.clipboard.writeText(lead.marketingContent!.whatsapp!)}>
-                          Copy
-                        </Button>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <MessageCircle className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-medium">WhatsApp Cold Outreach</span>
+                        {(lead.marketingContent as any)?.whatsappStatus === "sent" ? (
+                          <Badge variant="success" className="text-[10px] py-0 px-1.5 flex items-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Terkirim
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-emerald-600 border-emerald-500/30">
+                            Pesan Siap
+                          </Badge>
+                        )}
+                        <div className="ml-auto flex items-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs opacity-60 hover:opacity-100"
+                            onClick={() => navigator.clipboard.writeText(lead.marketingContent!.whatsapp!)}
+                          >
+                            Copy
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-xs gap-1 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10"
+                            onClick={() => setWaModalOpen(true)}
+                          >
+                            <Send className="w-3 h-3" />
+                            Kirim WA
+                          </Button>
+                        </div>
                       </div>
                       <div className="bg-muted/50 rounded-lg p-3 text-xs leading-relaxed whitespace-pre-wrap">
                         {lead.marketingContent.whatsapp}
@@ -201,33 +272,88 @@ export function LeadDetail({ id }: { id: string }) {
         <motion.div variants={item} className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">CRM Status</CardTitle>
+              <CardTitle className="text-base flex items-center justify-between">
+                <span>CRM Management</span>
+                <Badge variant="secondary" className="capitalize text-[10px]">
+                  {lead.crmStatus}
+                </Badge>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Select
-                defaultValue={lead.crmStatus}
-                onValueChange={(v) => setCrmStatus(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="new">🔵 New</SelectItem>
-                  <SelectItem value="contacted">📤 Contacted</SelectItem>
-                  <SelectItem value="replied">💬 Replied</SelectItem>
-                  <SelectItem value="meeting">📅 Meeting</SelectItem>
-                  <SelectItem value="proposal">📄 Proposal</SelectItem>
-                  <SelectItem value="won">✅ Won</SelectItem>
-                  <SelectItem value="lost">❌ Lost</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-1">
+                <Label className="text-xs">Tahap Prospek (Stage):</Label>
+                <Select
+                  value={crmStatus || lead.crmStatus}
+                  onValueChange={(v) => setCrmStatus(v)}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">🔵 New Leads</SelectItem>
+                    <SelectItem value="contacted">📤 Contacted (WA)</SelectItem>
+                    <SelectItem value="replied">💬 Replied</SelectItem>
+                    <SelectItem value="meeting">📅 Meeting / Demo</SelectItem>
+                    <SelectItem value="proposal">📄 Proposal</SelectItem>
+                    <SelectItem value="won">✅ Won / Deal</SelectItem>
+                    <SelectItem value="lost">❌ Lost</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Catatan Prospek (Notes):</Label>
+                <Textarea
+                  value={crmNotes}
+                  onChange={(e) => setCrmNotes(e.target.value)}
+                  placeholder="Tulis catatan diskusi, kebutuhan prospek, atau hasil follow-up..."
+                  rows={3}
+                  className="text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Jadwal Follow-Up:</Label>
+                <Input
+                  type="date"
+                  value={followUpDate}
+                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  className="text-xs h-8"
+                />
+              </div>
+
               <Button
                 variant="gradient"
-                className="w-full text-sm h-9"
+                className="w-full text-xs h-9"
                 onClick={handleCrmUpdate}
-                disabled={saving || !crmStatus}
+                disabled={saving}
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Status"}
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Simpan Status & Catatan"}
+              </Button>
+
+              {lead.phone && (
+                <Button
+                  variant="outline"
+                  className="w-full text-xs h-9 gap-1.5 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 font-medium"
+                  onClick={() => setWaModalOpen(true)}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Kirim Cold WhatsApp (AI)
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                className="w-full text-xs h-8 gap-1.5"
+                onClick={handleSyncTwenty}
+                disabled={syncingTwenty}
+              >
+                {syncingTwenty ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <span className="font-bold text-primary">20</span>
+                )}
+                Sync to Twenty CRM
               </Button>
             </CardContent>
           </Card>
@@ -252,6 +378,14 @@ export function LeadDetail({ id }: { id: string }) {
           </Card>
         </motion.div>
       </div>
+
+      <WhatsAppOutreachModal
+        lead={lead}
+        open={waModalOpen}
+        onOpenChange={setWaModalOpen}
+        onSuccess={refresh}
+      />
     </motion.div>
   );
 }
+

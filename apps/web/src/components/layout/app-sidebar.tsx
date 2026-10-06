@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Megaphone, Users, BarChart3, Settings, Zap, ChevronDown, Building2, LogOut,
+  LayoutDashboard, Megaphone, Users, BarChart3, Settings, Zap, ChevronDown, Building2, LogOut, Kanban,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +22,10 @@ const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Campaigns", href: "/campaigns", icon: Megaphone, badge: "New" },
   { title: "Leads", href: "/leads", icon: Users },
+  { title: "CRM Pipeline", href: "/crm", icon: Kanban, badge: "Live" },
   { title: "Analytics", href: "/analytics", icon: BarChart3 },
 ];
+
 
 const bottomItems = [
   { title: "Integrations", href: "/integrations", icon: Zap },

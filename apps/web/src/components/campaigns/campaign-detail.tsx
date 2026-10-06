@@ -1,5 +1,6 @@
 "use client";
-import { useEffect } from "react";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
@@ -9,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, Download, Users, Star, TrendingUp, MapPin, Loader2, Search, List, Map as MapIcon } from "lucide-react";
+import { ArrowLeft, Download, Users, Star, TrendingUp, MapPin, Loader2, Search, List, Map as MapIcon, Share2, MessageCircle } from "lucide-react";
 import { useCampaign } from "@/hooks/use-campaigns";
 import { useLeads } from "@/hooks/use-leads";
 import { LeadsTable } from "@/components/leads/leads-table";
+import { WhatsAppCampaignModal } from "@/components/campaigns/whatsapp-campaign-modal";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 const LeadsMap = dynamic(() => import("@/components/leads/leads-map").then((m) => m.LeadsMap), {
   ssr: false,
@@ -32,6 +35,30 @@ const item = {
 export function CampaignDetail({ id }: { id: string }) {
   const { campaign, loading, refresh } = useCampaign(id);
   const { leads, loading: leadsLoading, refresh: refreshLeads } = useLeads({ campaignId: id });
+
+  const [syncingTwenty, setSyncingTwenty] = useState(false);
+  const [waModalOpen, setWaModalOpen] = useState(false);
+
+
+  const handleSyncTwenty = async () => {
+    setSyncingTwenty(true);
+    try {
+      const res = await api.post<{ success: boolean; syncedCount?: number; total?: number; error?: string }>(
+        `/integrations/twenty/sync-campaign/${id}`,
+        {}
+      );
+      if (res.success) {
+        toast.success(`Successfully synced ${res.syncedCount || leads.length} leads to Twenty CRM!`);
+        await refreshLeads();
+      } else {
+        toast.error(res.error || "Failed to sync campaign to Twenty CRM");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to sync to Twenty CRM. Check your settings.");
+    } finally {
+      setSyncingTwenty(false);
+    }
+  };
 
   // Poll while campaign is running
   useEffect(() => {
@@ -100,8 +127,36 @@ export function CampaignDetail({ id }: { id: string }) {
           <Button variant="outline" size="sm" onClick={() => api.download(`/export/leads/vcard?campaignId=${id}`, `leads-${id}.vcf`)}>
             <Download className="mr-2 h-4 w-4" />vCard
           </Button>
+          <Button
+            size="sm"
+            onClick={() => setWaModalOpen(true)}
+            disabled={leads.length === 0}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-medium"
+          >
+            <MessageCircle className="mr-2 h-4 w-4" />
+            Kirim WA (AI)
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSyncTwenty}
+            disabled={syncingTwenty || leads.length === 0}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+          >
+            {syncingTwenty ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <Share2 className="mr-2 h-4 w-4" />
+                Sync to Twenty CRM
+              </>
+            )}
+          </Button>
         </div>
       </motion.div>
+
 
       <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -176,6 +231,18 @@ export function CampaignDetail({ id }: { id: string }) {
           </Tabs>
         </Card>
       </motion.div>
+
+      <WhatsAppCampaignModal
+        campaignId={id}
+        campaignName={campaign.name}
+        open={waModalOpen}
+        onOpenChange={setWaModalOpen}
+        onComplete={() => {
+          refresh();
+          refreshLeads();
+        }}
+      />
     </motion.div>
   );
 }
+

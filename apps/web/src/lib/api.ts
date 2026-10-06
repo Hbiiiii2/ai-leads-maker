@@ -5,12 +5,26 @@ function getToken(): string | null {
   return localStorage.getItem("prospex_token");
 }
 
+function getWorkspaceId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("prospex_user");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed.workspace?.id || null;
+    }
+  } catch {}
+  return null;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
+  const workspaceId = getWorkspaceId();
   const res = await fetch(`${API_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
       ...options?.headers,
     },
     ...options,
@@ -43,8 +57,12 @@ export const api = {
   /** Fetch a file with auth header and trigger browser download */
   async download(path: string, filename: string): Promise<void> {
     const token = getToken();
+    const workspaceId = getWorkspaceId();
     const res = await fetch(`${API_URL}${path}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
+      },
     });
     if (res.status === 401) {
       localStorage.removeItem("prospex_token");

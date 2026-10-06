@@ -36,8 +36,14 @@ export class WhatsAppService {
   ) {}
 
   async getCredentials(workspaceId: string): Promise<WhatsAppConfig | null> {
+    let targetWorkspaceId = workspaceId;
+    if (!targetWorkspaceId || targetWorkspaceId === "default-workspace") {
+      const fallbackWs = await this.prisma.workspace.findFirst();
+      if (fallbackWs) targetWorkspaceId = fallbackWs.id;
+    }
+
     const integration = await this.prisma.integration.findFirst({
-      where: { workspaceId, type: "whatsapp", enabled: true },
+      where: { workspaceId: targetWorkspaceId, type: "whatsapp", enabled: true },
     });
 
     if (integration?.config) {

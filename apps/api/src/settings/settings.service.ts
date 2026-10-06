@@ -35,7 +35,12 @@ export class SettingsService {
   }
 
   async getIntegrations(workspaceId = DEFAULT_WORKSPACE_ID) {
-    const integrations = await this.prisma.integration.findMany({ where: { workspaceId } });
+    let targetWorkspaceId = workspaceId;
+    if (!targetWorkspaceId || targetWorkspaceId === DEFAULT_WORKSPACE_ID) {
+      const fallbackWs = await this.prisma.workspace.findFirst();
+      if (fallbackWs) targetWorkspaceId = fallbackWs.id;
+    }
+    const integrations = await this.prisma.integration.findMany({ where: { workspaceId: targetWorkspaceId } });
     return integrations.map((integration) => ({
       ...integration,
       config: this.decryptConfig(integration.config as Record<string, string>),
@@ -52,12 +57,21 @@ export class SettingsService {
 
     // Ensure valid workspace exists to satisfy foreign key constraint
     let targetWorkspaceId = workspaceId;
-    const ws = await this.prisma.workspace.findUnique({ where: { id: targetWorkspaceId } });
+    let ws = null;
+    if (targetWorkspaceId && targetWorkspaceId !== DEFAULT_WORKSPACE_ID) {
+      ws = await this.prisma.workspace.findUnique({ where: { id: targetWorkspaceId } });
+    }
     if (!ws) {
-      const fallbackWs = await this.prisma.workspace.findFirst();
-      if (fallbackWs) {
-        targetWorkspaceId = fallbackWs.id;
+      let fallbackWs = await this.prisma.workspace.findFirst();
+      if (!fallbackWs) {
+        fallbackWs = await this.prisma.workspace.create({
+          data: {
+            name: "Default Workspace",
+            slug: `default-workspace-${Date.now().toString(36)}`,
+          },
+        });
       }
+      targetWorkspaceId = fallbackWs.id;
     }
 
     const existing = await this.prisma.integration.findFirst({

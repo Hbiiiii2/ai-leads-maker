@@ -24,9 +24,15 @@ export class TwentyCrmService {
   ) {}
 
   async getCredentials(workspaceId: string): Promise<{ apiUrl: string; apiKey: string } | null> {
+    let targetWorkspaceId = workspaceId;
+    if (!targetWorkspaceId || targetWorkspaceId === "default-workspace") {
+      const fallbackWs = await this.prisma.workspace.findFirst();
+      if (fallbackWs) targetWorkspaceId = fallbackWs.id;
+    }
+
     // 1. Check database integration table for workspace
     const integration = await this.prisma.integration.findFirst({
-      where: { workspaceId, type: "twenty_crm", enabled: true },
+      where: { workspaceId: targetWorkspaceId, type: "twenty_crm", enabled: true },
     });
 
     if (integration?.config) {

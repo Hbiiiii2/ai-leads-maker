@@ -49,6 +49,8 @@ services:
       NEXT_PUBLIC_APP_URL: ${APP_URL:-http://localhost}
       TWENTY_CRM_URL: ${TWENTY_CRM_URL:-}
       TWENTY_CRM_API_KEY: ${TWENTY_CRM_API_KEY:-}
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-http://waha:3000}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-waha}
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,6 +89,20 @@ services:
       - web
       - api
 
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: prospex_waha
+    restart: always
+    ports:
+      - "${WAHA_PORT:-3008}:3000"
+    environment:
+      WAHA_DASHBOARD_ENABLED: "True"
+      WAHA_ZIP_LOGS: "False"
+      WHATSAPP_DEFAULT_ENGINE: "WEBJS"
+    volumes:
+      - waha_data:/app/.sessions
+
 volumes:
   postgres_data:
   redis_data:
+  waha_data:

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, UseGuards, Logger, BadRequestException, InternalServerErrorException } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { WhatsAppService } from "./whatsapp.service";
 import { SettingsService } from "../settings/settings.service";
@@ -11,6 +11,8 @@ import { WhatsAppConfig, WhatsAppProvider } from "@prospex/types";
 @UseGuards(JwtGuard)
 @Controller("integrations/whatsapp")
 export class WhatsAppController {
+  private readonly logger = new Logger(WhatsAppController.name);
+
   constructor(
     private readonly whatsappService: WhatsAppService,
     private readonly settingsService: SettingsService,
@@ -42,23 +44,31 @@ export class WhatsAppController {
       senderPhone?: string;
     },
   ) {
-    await this.settingsService.upsertIntegration(
-      "whatsapp",
-      "WhatsApp Gateway",
-      {
-        provider: body.provider || "waha",
-        apiUrl: body.apiUrl,
-        apiKey: body.apiKey,
-        session: body.session || "default",
-        senderPhone: body.senderPhone,
-      },
-      workspaceId,
-    );
+    if (!body?.apiUrl) {
+      throw new BadRequestException("WhatsApp Gateway Server URL is required");
+    }
+    try {
+      await this.settingsService.upsertIntegration(
+        "whatsapp",
+        "WhatsApp Gateway",
+        {
+          provider: body.provider || "waha",
+          apiUrl: body.apiUrl,
+          apiKey: body.apiKey,
+          session: body.session || "default",
+          senderPhone: body.senderPhone,
+        },
+        workspaceId,
+      );
 
-    return {
-      success: true,
-      message: "Konfigurasi WhatsApp Gateway berhasil disimpan!",
-    };
+      return {
+        success: true,
+        message: "Konfigurasi WhatsApp Gateway berhasil disimpan!",
+      };
+    } catch (e: any) {
+      this.logger.error(`Failed to save WhatsApp config: ${e.message}`, e.stack);
+      throw new InternalServerErrorException(e.message || "Gagal menyimpan konfigurasi WhatsApp");
+    }
   }
 
   @Post("test")

@@ -156,15 +156,17 @@ export function IntegrationsPage() {
 
   // Twenty CRM handlers
   const handleTestTwenty = async () => {
-    if (!twentyApiKey && !isTwentyConfigured) {
+    const cleanUrl = twentyUrl.trim().replace(/\/$/, "");
+    const cleanKey = twentyApiKey.trim();
+    if (!cleanKey && !isTwentyConfigured) {
       toast.error("Please enter a Twenty CRM API key");
       return;
     }
     setTwentyTesting(true);
     try {
       const res = await api.post<{ success: boolean; message: string }>("/integrations/twenty/test", {
-        apiUrl: twentyUrl,
-        apiKey: twentyApiKey || undefined,
+        apiUrl: cleanUrl,
+        apiKey: cleanKey || undefined,
       });
       if (res.success) {
         toast.success(res.message);
@@ -179,15 +181,17 @@ export function IntegrationsPage() {
   };
 
   const handleSaveTwenty = async () => {
-    if (!twentyApiKey) {
+    const cleanUrl = twentyUrl.trim().replace(/\/$/, "");
+    const cleanKey = twentyApiKey.trim();
+    if (!cleanKey) {
       toast.error("Please enter your Twenty CRM API key");
       return;
     }
     setTwentySaving(true);
     try {
       const res = await api.post<{ success: boolean; message: string }>("/integrations/twenty/save", {
-        apiUrl: twentyUrl,
-        apiKey: twentyApiKey,
+        apiUrl: cleanUrl,
+        apiKey: cleanKey,
       });
       if (res.success) {
         setIsTwentyConfigured(true);
@@ -202,13 +206,14 @@ export function IntegrationsPage() {
 
   // WhatsApp Gateway handlers
   const handleTestWa = async () => {
+    const cleanUrl = waApiUrl.trim().replace(/\/$/, "");
     setWaTesting(true);
     try {
       const res = await api.post<{ success: boolean; message: string }>("/integrations/whatsapp/test", {
         provider: waProvider,
-        apiUrl: waApiUrl,
-        apiKey: waApiKey || undefined,
-        session: waSession,
+        apiUrl: cleanUrl,
+        apiKey: waApiKey.trim() || undefined,
+        session: waSession.trim() || "default",
       });
       if (res.success) {
         toast.success(res.message);
@@ -223,7 +228,8 @@ export function IntegrationsPage() {
   };
 
   const handleSaveWa = async () => {
-    if (!waApiUrl) {
+    const cleanUrl = waApiUrl.trim().replace(/\/$/, "");
+    if (!cleanUrl) {
       toast.error("URL WhatsApp Gateway tidak boleh kosong");
       return;
     }
@@ -231,10 +237,10 @@ export function IntegrationsPage() {
     try {
       const res = await api.post<{ success: boolean; message: string }>("/integrations/whatsapp/save", {
         provider: waProvider,
-        apiUrl: waApiUrl,
-        apiKey: waApiKey || undefined,
-        session: waSession || "default",
-        senderPhone: waSenderPhone || undefined,
+        apiUrl: cleanUrl,
+        apiKey: waApiKey.trim() || undefined,
+        session: waSession.trim() || "default",
+        senderPhone: waSenderPhone.trim() || undefined,
       });
       if (res.success) {
         setIsWaConfigured(true);

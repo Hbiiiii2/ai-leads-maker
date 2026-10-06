@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, UseGuards, Logger, BadRequestException, InternalServerErrorException } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { TwentyCrmService } from "./twenty-crm.service";
 import { SettingsService } from "../settings/settings.service";
@@ -10,6 +10,8 @@ import { WorkspaceId } from "../auth/current-workspace.decorator";
 @UseGuards(JwtGuard)
 @Controller("integrations")
 export class IntegrationsController {
+  private readonly logger = new Logger(IntegrationsController.name);
+
   constructor(
     private readonly twentyCrm: TwentyCrmService,
     private readonly settingsService: SettingsService,
@@ -40,13 +42,21 @@ export class IntegrationsController {
     @WorkspaceId() workspaceId: string,
     @Body() body: { apiUrl: string; apiKey: string },
   ) {
-    await this.settingsService.upsertIntegration(
-      "twenty_crm",
-      "Twenty CRM",
-      { apiUrl: body.apiUrl, apiKey: body.apiKey },
-      workspaceId,
-    );
-    return { success: true, message: "Twenty CRM credentials saved successfully!" };
+    if (!body?.apiUrl) {
+      throw new BadRequestException("Twenty CRM Server URL is required");
+    }
+    try {
+      await this.settingsService.upsertIntegration(
+        "twenty_crm",
+        "Twenty CRM",
+        { apiUrl: body.apiUrl, apiKey: body.apiKey },
+        workspaceId,
+      );
+      return { success: true, message: "Twenty CRM credentials saved successfully!" };
+    } catch (e: any) {
+      this.logger.error(`Failed to save Twenty CRM config: ${e.message}`, e.stack);
+      throw new InternalServerErrorException(e.message || "Failed to save Twenty CRM configuration");
+    }
   }
 
   @Post("twenty/sync-lead/:id")

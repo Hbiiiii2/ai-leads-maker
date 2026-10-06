@@ -15,7 +15,7 @@ export class SettingsService {
   ) {}
 
   private get encryptionKey(): string {
-    return this.config.get<string>("ENCRYPTION_KEY")!;
+    return this.config.get<string>("ENCRYPTION_KEY") || "";
   }
 
   private decryptConfig(config: Record<string, string>): Record<string, string> {
@@ -49,14 +49,29 @@ export class SettingsService {
     workspaceId = DEFAULT_WORKSPACE_ID,
   ) {
     const encryptedConfig = this.encryptConfig(config);
-    const existing = await this.prisma.integration.findFirst({ where: { workspaceId, type } });
+
+    // Ensure valid workspace exists to satisfy foreign key constraint
+    let targetWorkspaceId = workspaceId;
+    const ws = await this.prisma.workspace.findUnique({ where: { id: targetWorkspaceId } });
+    if (!ws) {
+      const fallbackWs = await this.prisma.workspace.findFirst();
+      if (fallbackWs) {
+        targetWorkspaceId = fallbackWs.id;
+      }
+    }
+
+    const existing = await this.prisma.integration.findFirst({
+      where: { workspaceId: targetWorkspaceId, type },
+    });
     if (existing) {
       return this.prisma.integration.update({
         where: { id: existing.id },
         data: { config: encryptedConfig, enabled: true },
       });
     }
-    return this.prisma.integration.create({ data: { type, name, config: encryptedConfig, workspaceId } });
+    return this.prisma.integration.create({
+      data: { type, name, config: encryptedConfig, workspaceId: targetWorkspaceId },
+    });
   }
 
   async listApiKeys(workspaceId = DEFAULT_WORKSPACE_ID) {

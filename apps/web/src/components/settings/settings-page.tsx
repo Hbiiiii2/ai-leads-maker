@@ -16,7 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Key, Zap, Users, Shield, Globe, Loader2, Trash2, Plus, Eye, EyeOff, Copy, Check } from "lucide-react";
+import Link from "next/link";
+import { Key, Zap, Users, Shield, Globe, Loader2, Trash2, Plus, Eye, EyeOff, Copy, Check, MessageCircle, Building2, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 
@@ -360,22 +361,73 @@ export function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="integrations">
+        <TabsContent value="integrations" className="space-y-4">
+          <Card className="border-emerald-500/40 bg-emerald-500/5">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold">
+                    <MessageCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      WhatsApp Unofficial Gateway
+                      <Badge variant="success" className="text-[10px]">Aktif & Siap</Badge>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Otomasi cold messaging WhatsApp via WAHA (Docker), Fonnte, Wablas, atau Direct WA
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
+                  <Link href="/integrations">
+                    Buka Konfigurasi WhatsApp <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-indigo-500/30 bg-indigo-500/5">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-600 font-bold">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      Twenty CRM Integration
+                      <Badge variant="info" className="text-[10px]">Tersedia</Badge>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Sinkronkan data leads, PIC, dan deals langsung ke Twenty CRM (Self-Hosted di VPS)
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm" className="gap-1.5 border-indigo-500/30 text-indigo-600">
+                  <Link href="/integrations">
+                    Kelola Twenty CRM <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-muted-foreground" />
-                <CardTitle className="text-base">Integrations</CardTitle>
+                <CardTitle className="text-base">Kanal Eksternal Lainnya</CardTitle>
               </div>
-              <CardDescription>Connect external services</CardDescription>
+              <CardDescription>Integrasi tambahan yang sedang dikembangkan</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {[
-                  { name: "WhatsApp Business", description: "Send WhatsApp messages to leads" },
-                  { name: "Gmail", description: "Send emails directly from Prospex" },
-                  { name: "Telegram", description: "Get notifications via Telegram" },
-                  { name: "Webhook", description: "Send data to any HTTP endpoint" },
+                  { name: "Gmail / Email Outreach", description: "Kirim cold email langsung dari Prospex" },
+                  { name: "Telegram Bot", description: "Notifikasi lead baru langsung ke grup Telegram" },
+                  { name: "Custom Webhook", description: "Kirim data ke Zapier, Make, atau N8N" },
                 ].map((integration) => (
                   <div key={integration.name} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>

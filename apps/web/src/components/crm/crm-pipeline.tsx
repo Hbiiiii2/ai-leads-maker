@@ -23,6 +23,7 @@ import {
   Clock,
   Send,
   MoreHorizontal,
+  Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -175,6 +176,23 @@ export function CrmPipeline() {
               Tabel
             </Button>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url =
+                selectedCampaign !== "all"
+                  ? `/export/leads/csv?campaignId=${selectedCampaign}`
+                  : "/export/leads/csv";
+              api.download(url, "leads-crm-sheets.csv");
+            }}
+            className="h-9 text-xs gap-1.5"
+            title="Download CSV format rapi untuk Google Sheets & Excel"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            Export Sheets
+          </Button>
 
           <Button variant="outline" size="sm" onClick={handleRefresh} className="h-9 text-xs gap-1.5">
             <RefreshCw className="w-3.5 h-3.5" />

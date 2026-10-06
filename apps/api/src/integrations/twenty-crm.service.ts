@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import { decryptSecret } from "../settings/encryption.util";
+import { normalizePhoneNumber } from "./whatsapp.service";
 
 export interface SyncLeadResult {
   leadId: string;
@@ -130,22 +131,35 @@ export class TwentyCrmService {
     const companyData = await companyRes.json();
     const companyId = companyData?.data?.createCompany?.id;
 
-    // 2. Create Person (Contact PIC) if phone exists
+    // 2. Create Person (Contact PIC) if phone or email exists
     let personId: string | undefined;
-    if (lead.phone) {
+    if (lead.phone || lead.email) {
       try {
+        const rawDigits = normalizePhoneNumber(lead.phone || "");
+        const formattedPhone = rawDigits ? `+${rawDigits}` : lead.phone;
+
+        const personPayload: Record<string, any> = {
+          name: { firstName: lead.name, lastName: "PIC" },
+          companyId,
+          jobTitle: lead.category
+            ? `${lead.category} · Skor ${lead.score}`
+            : `Owner / PIC · Skor ${lead.score}`,
+        };
+
+        if (formattedPhone) {
+          personPayload.phones = { primaryPhoneNumber: formattedPhone };
+        }
+        if (lead.email) {
+          personPayload.emails = { primaryEmail: lead.email };
+        }
+
         const personRes = await fetch(`${baseUrl}/rest/people`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${creds.apiKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            name: { firstName: "Lead PIC", lastName: lead.name },
-            phones: { primaryPhoneNumber: lead.phone },
-            companyId,
-            jobTitle: `Lead Score: ${lead.score} (${lead.priority})`,
-          }),
+          body: JSON.stringify(personPayload),
         });
 
         if (personRes.ok) {
@@ -157,13 +171,24 @@ export class TwentyCrmService {
       }
     }
 
-    // 3. Create Opportunity (Deal Card on Twenty Kanban)
+    // 3. Create Opportunity (Deal Card on Twenty Kanban / Table)
     let opportunityId: string | undefined;
     try {
+      const stageMap: Record<string, string> = {
+        new: "NEW",
+        contacted: "SCREENING",
+        replied: "SCREENING",
+        meeting: "MEETING",
+        proposal: "PROPOSAL",
+        won: "CLOSED_WON",
+        lost: "CLOSED_LOST",
+      };
+      const oppStage = stageMap[lead.crmStatus || "new"] || "NEW";
+
       const oppPayload: Record<string, any> = {
-        name: `${lead.name} (Prospex Lead)`,
+        name: lead.name,
         companyId,
-        stage: "SCREENING",
+        stage: oppStage,
       };
       if (personId) {
         oppPayload.pointOfContactId = personId;

@@ -262,7 +262,14 @@ export function IntegrationsPage() {
     try {
       const res = await api.post<{ success: boolean; error?: string; messageId?: string }>(
         "/integrations/whatsapp/send-test",
-        { phone: testPhone, message: testMessage }
+        {
+          phone: testPhone,
+          message: testMessage,
+          session: waSession.trim() || "1",
+          apiUrl: waApiUrl.trim() || undefined,
+          apiKey: waApiKey.trim() || undefined,
+          provider: waProvider,
+        }
       );
       if (res.success) {
         toast.success(`Pesan pengujian berhasil terkirim ke ${testPhone}! (ID: ${res.messageId})`);

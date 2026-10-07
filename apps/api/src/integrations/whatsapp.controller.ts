@@ -84,17 +84,34 @@ export class WhatsAppController {
   @ApiOperation({ summary: "Send a test WhatsApp message" })
   async sendTestMessage(
     @WorkspaceId() workspaceId: string,
-    @Body() body: { phone: string; message: string },
+    @Body()
+    body: {
+      phone: string;
+      message: string;
+      session?: string;
+      apiUrl?: string;
+      apiKey?: string;
+      provider?: WhatsAppProvider;
+    },
   ) {
     const creds = await this.whatsappService.getCredentials(workspaceId);
-    if (!creds) {
+    if (!creds && !body.apiUrl) {
       return {
         success: false,
         error: "WhatsApp Gateway belum dikonfigurasi. Silakan simpan pengaturan terlebih dahulu.",
       };
     }
+
+    const finalCreds: WhatsAppConfig = {
+      provider: body.provider || creds?.provider || "waha",
+      apiUrl: body.apiUrl || creds?.apiUrl || "http://localhost:3000",
+      apiKey: body.apiKey !== undefined ? body.apiKey : creds?.apiKey,
+      session: body.session || creds?.session || "1",
+      senderPhone: creds?.senderPhone,
+    };
+
     return this.whatsappService.sendRawMessage(
-      creds,
+      finalCreds,
       body.phone,
       body.message || "Halo! Ini adalah pesan pengujian koneksi dari Prospex AI Lead Automation 🚀",
     );

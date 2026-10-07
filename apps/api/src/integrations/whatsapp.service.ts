@@ -42,9 +42,17 @@ export class WhatsAppService {
       if (fallbackWs) targetWorkspaceId = fallbackWs.id;
     }
 
-    const integration = await this.prisma.integration.findFirst({
+    let integration = await this.prisma.integration.findFirst({
       where: { workspaceId: targetWorkspaceId, type: "whatsapp", enabled: true },
     });
+
+    // Fallback: if not found for specific workspace ID, look for any enabled whatsapp integration
+    if (!integration) {
+      integration = await this.prisma.integration.findFirst({
+        where: { type: "whatsapp", enabled: true },
+        orderBy: { updatedAt: "desc" },
+      });
+    }
 
     if (integration?.config) {
       const cfg = integration.config as Record<string, string>;

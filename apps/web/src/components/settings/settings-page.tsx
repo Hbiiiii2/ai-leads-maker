@@ -227,15 +227,60 @@ export function SettingsPage() {
               <CardDescription>Configure your AI provider for lead scoring and content generation</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Quick Presets */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Pilih Provider Preset:</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary font-medium"
+                    onClick={() => {
+                      setOpenaiModel("gemini-2.5-flash");
+                      setOpenaiBase("https://generativelanguage.googleapis.com/v1beta/openai/");
+                    }}
+                  >
+                    ✨ Google Gemini (Recommended)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => {
+                      setOpenaiModel("gpt-4o-mini");
+                      setOpenaiBase("");
+                    }}
+                  >
+                    OpenAI (Direct)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => {
+                      setOpenaiModel("google/gemini-2.5-flash");
+                      setOpenaiBase("https://openrouter.ai/api/v1");
+                    }}
+                  >
+                    OpenRouter
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
               <div className="space-y-2">
-                <Label>OpenAI API Key</Label>
+                <Label>API Key (Gemini / OpenAI / OpenRouter)</Label>
                 <div className="flex gap-2">
                   <Input
                     type={showKey ? "text" : "password"}
-                    placeholder="sk-... or your provider key"
+                    placeholder="Masukkan API Key (contoh: AQ.Ab8... untuk Gemini atau sk-...)"
                     value={openaiKey}
                     onChange={(e) => setOpenaiKey(e.target.value)}
-                    className="flex-1"
+                    className="flex-1 font-mono text-sm"
                   />
                   <Button
                     variant="outline"
@@ -246,13 +291,13 @@ export function SettingsPage() {
                     {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Used for AI content generation and lead scoring</p>
+                <p className="text-xs text-muted-foreground">Digunakan untuk pembuatan teks penawaran (Cold Outreach) dan analisa lead scoring AI.</p>
               </div>
               <Separator />
               <div className="space-y-2">
                 <Label>Model</Label>
                 <Input
-                  placeholder="e.g. gpt-4o-mini, gemini-flash, claude-haiku"
+                  placeholder="e.g. gemini-2.5-flash, gpt-4o-mini"
                   value={openaiModel}
                   onChange={(e) => setOpenaiModel(e.target.value)}
                 />
@@ -260,11 +305,11 @@ export function SettingsPage() {
               <Separator />
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Custom Base URL</Label>
-                  <Badge variant="secondary" className="text-xs">Optional (OpenRouter/Ollama)</Badge>
+                  <Label>Base URL Endpoint</Label>
+                  <Badge variant="secondary" className="text-xs">Diperlukan untuk Gemini & OpenRouter</Badge>
                 </div>
                 <Input
-                  placeholder="e.g. http://localhost:8045/v1"
+                  placeholder="e.g. https://generativelanguage.googleapis.com/v1beta/openai/"
                   value={openaiBase}
                   onChange={(e) => setOpenaiBase(e.target.value)}
                 />

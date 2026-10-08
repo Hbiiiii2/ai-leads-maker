@@ -41,12 +41,21 @@ export class MarketingAiService {
   private openai: OpenAI | null = null;
 
   constructor(private config: ConfigService) {
-    const apiKey = this.config.get<string>("OPENAI_API_KEY");
+    const apiKey = this.config.get<string>("OPENAI_API_KEY") || this.config.get<string>("GEMINI_API_KEY");
+    let baseURL = this.config.get<string>("OPENAI_BASE_URL");
+
+    if (!baseURL && (this.config.get<string>("GEMINI_API_KEY") || this.config.get<string>("OPENAI_MODEL")?.includes("gemini"))) {
+      baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+    }
+
     if (apiKey) {
       this.openai = new OpenAI({
         apiKey,
-        baseURL: this.config.get<string>("OPENAI_BASE_URL") || undefined,
+        baseURL: baseURL || undefined,
       });
+      this.logger.log(`MarketingAiService initialized (baseURL: ${baseURL || "https://api.openai.com/v1"})`);
+    } else {
+      this.logger.warn("No AI API key found. MarketingAiService will use built-in mock templates.");
     }
   }
 
@@ -55,13 +64,16 @@ export class MarketingAiService {
     try {
       return await this.callOpenAI(input);
     } catch (err) {
-      this.logger.error("OpenAI generation failed, using mock content", err);
+      this.logger.error("AI content generation failed, using mock content", err);
       return this.generateMockContent(input);
     }
   }
 
   private async callOpenAI(input: GenerateContentInput): Promise<MarketingContent> {
-    const model = this.config.get<string>("OPENAI_MODEL") || "gpt-4o-mini";
+    const model =
+      this.config.get<string>("OPENAI_MODEL") ||
+      this.config.get<string>("GEMINI_MODEL") ||
+      "gemini-2.5-flash";
     const isIndonesian = input.language === "indonesian";
     const styleCues: Record<string, string> = {
       professional: "formal, professional, direct",
@@ -140,7 +152,10 @@ Respond ONLY with valid JSON:
   async generateWhatsAppColdMessage(input: GenerateWhatsAppInput): Promise<string> {
     if (!this.openai) return this.generateMockWhatsAppMessage(input);
     try {
-      const model = this.config.get<string>("OPENAI_MODEL") || "gpt-4o-mini";
+      const model =
+        this.config.get<string>("OPENAI_MODEL") ||
+        this.config.get<string>("GEMINI_MODEL") ||
+        "gemini-2.5-flash";
       const isIndonesian = (input.language || "indonesian") === "indonesian";
       const toneMap: Record<string, string> = {
         professional: "formal, sopan, B2B, fokus solusi",
@@ -179,7 +194,13 @@ PENTING: Balas HANYA dengan teks pesan WhatsApp saja tanpa tanda kutip, tanpa ma
         temperature: 0.7,
       });
 
-      const content = response.choices[0]?.message?.content?.trim();
+      let content = response.choices[0]?.message?.content?.trim();
+      if (content) {
+        content = content.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim();
+        if (content.startsWith('"') && content.endsWith('"')) {
+          content = content.slice(1, -1).trim();
+        }
+      }
       return content || this.generateMockWhatsAppMessage(input);
     } catch (err) {
       this.logger.error("AI WhatsApp generation failed, using mock template", err);

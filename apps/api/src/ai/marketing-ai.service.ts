@@ -1,6 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import OpenAI from "openai";
+import { PrismaService } from "../prisma/prisma.service";
+import { decryptSecret } from "../settings/encryption.util";
 
 export interface GenerateContentInput {
   businessName: string;
@@ -34,46 +36,207 @@ export interface GenerateWhatsAppInput {
   customPrompt?: string;
 }
 
+export interface ResolvedAiConfig {
+  apiKey: string;
+  model: string;
+  baseURL?: string;
+  provider: "openrouter" | "gemini" | "openai" | "custom";
+}
 
 @Injectable()
 export class MarketingAiService {
   private readonly logger = new Logger(MarketingAiService.name);
-  private openai: OpenAI | null = null;
 
-  constructor(private config: ConfigService) {
-    const apiKey = this.config.get<string>("OPENAI_API_KEY") || this.config.get<string>("GEMINI_API_KEY");
-    let baseURL = this.config.get<string>("OPENAI_BASE_URL");
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
-    if (!baseURL && (this.config.get<string>("GEMINI_API_KEY") || this.config.get<string>("OPENAI_MODEL")?.includes("gemini"))) {
-      baseURL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+  /**
+   * Resolves the AI provider configuration:
+   * 1. Check workspace integration in DB (type: "openai")
+   * 2. Fallback to latest enabled "openai" integration in DB
+   * 3. Fallback to environment variables (.env)
+   */
+  async getAiConfig(
+    workspaceId?: string,
+    override?: { apiKey?: string; model?: string; baseURL?: string },
+  ): Promise<ResolvedAiConfig | null> {
+    let apiKey = override?.apiKey?.trim() || "";
+    let model = override?.model?.trim() || "";
+    let baseURL = override?.baseURL?.trim() || "";
+
+    // 1. Check database integration if apiKey is not explicitly provided in override
+    if (!apiKey) {
+      let targetWorkspaceId = workspaceId;
+      if (!targetWorkspaceId || targetWorkspaceId === "default-workspace") {
+        const fallbackWs = await this.prisma.workspace.findFirst();
+        if (fallbackWs) targetWorkspaceId = fallbackWs.id;
+      }
+
+      let integration = await this.prisma.integration.findFirst({
+        where: { workspaceId: targetWorkspaceId, type: "openai", enabled: true },
+      });
+      if (!integration) {
+        integration = await this.prisma.integration.findFirst({
+          where: { type: "openai", enabled: true },
+          orderBy: { updatedAt: "desc" },
+        });
+      }
+
+      if (integration?.config) {
+        const cfg = integration.config as Record<string, string>;
+        const encKey = this.config.get<string>("ENCRYPTION_KEY") || "";
+        const rawApiKey = cfg.apiKey ? (encKey ? decryptSecret(cfg.apiKey, encKey) : cfg.apiKey) : "";
+        if (rawApiKey) {
+          apiKey = rawApiKey.trim();
+          if (!model) model = cfg.model?.trim() || "";
+          if (!baseURL) baseURL = cfg.baseURL?.trim() || "";
+        }
+      }
     }
 
-    if (apiKey) {
-      this.openai = new OpenAI({
-        apiKey,
-        baseURL: baseURL || undefined,
-      });
-      this.logger.log(`MarketingAiService initialized (baseURL: ${baseURL || "https://api.openai.com/v1"})`);
+    // 2. Fallback to environment variables
+    if (!apiKey) {
+      apiKey =
+        this.config.get<string>("OPENROUTER_API_KEY")?.trim() ||
+        this.config.get<string>("OPENAI_API_KEY")?.trim() ||
+        this.config.get<string>("GEMINI_API_KEY")?.trim() ||
+        "";
+
+      if (!model) {
+        model =
+          this.config.get<string>("OPENROUTER_MODEL")?.trim() ||
+          this.config.get<string>("OPENAI_MODEL")?.trim() ||
+          this.config.get<string>("GEMINI_MODEL")?.trim() ||
+          "";
+      }
+
+      if (!baseURL) {
+        baseURL =
+          this.config.get<string>("OPENROUTER_BASE_URL")?.trim() ||
+          this.config.get<string>("OPENAI_BASE_URL")?.trim() ||
+          "";
+      }
+    }
+
+    if (!apiKey) {
+      return null;
+    }
+
+    // Determine provider & endpoint normalization
+    let provider: "openrouter" | "gemini" | "openai" | "custom" = "openai";
+
+    const isExplicitOpenRouter =
+      apiKey.startsWith("sk-or-") ||
+      baseURL.includes("openrouter.ai") ||
+      (this.config.get<string>("OPENROUTER_API_KEY") && apiKey === this.config.get<string>("OPENROUTER_API_KEY"));
+
+    const isExplicitGemini =
+      apiKey.startsWith("AIza") ||
+      apiKey.startsWith("AQ.") ||
+      baseURL.includes("generativelanguage.googleapis.com");
+
+    if (isExplicitOpenRouter) {
+      provider = "openrouter";
+      baseURL = baseURL || "https://openrouter.ai/api/v1";
+      model = model || "google/gemini-2.5-flash";
+    } else if (isExplicitGemini || (model.includes("gemini") && !model.includes("/") && !baseURL)) {
+      provider = "gemini";
+      baseURL = baseURL || "https://generativelanguage.googleapis.com/v1beta/openai/";
+      model = model || "gemini-2.5-flash";
+    } else if (baseURL) {
+      provider = "custom";
+      model = model || "gpt-4o-mini";
     } else {
-      this.logger.warn("No AI API key found. MarketingAiService will use built-in mock templates.");
+      provider = "openai";
+      model = model || "gpt-4o-mini";
+    }
+
+    return { apiKey, model, baseURL: baseURL || undefined, provider };
+  }
+
+  createClient(config: ResolvedAiConfig): OpenAI {
+    const defaultHeaders: Record<string, string> = {};
+    if (config.provider === "openrouter" || (config.baseURL && config.baseURL.includes("openrouter.ai"))) {
+      defaultHeaders["HTTP-Referer"] =
+        this.config.get<string>("NEXT_PUBLIC_APP_URL") ||
+        this.config.get<string>("APP_URL") ||
+        "https://prospex.aybisa-workspace.my.id";
+      defaultHeaders["X-Title"] = "Prospex AI Lead Automation";
+    }
+
+    return new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseURL || undefined,
+      defaultHeaders: Object.keys(defaultHeaders).length > 0 ? defaultHeaders : undefined,
+    });
+  }
+
+  async testConnection(
+    workspaceId?: string,
+    overrideConfig?: { apiKey?: string; model?: string; baseURL?: string },
+  ): Promise<{ success: boolean; message: string; provider?: string; model?: string }> {
+    try {
+      const resolved = await this.getAiConfig(workspaceId, overrideConfig);
+      if (!resolved || !resolved.apiKey) {
+        return {
+          success: false,
+          message: "API Key belum diisi. Masukkan API Key terlebih dahulu.",
+        };
+      }
+
+      const client = this.createClient(resolved);
+      this.logger.log(`Testing AI connection to ${resolved.provider} (${resolved.model}) at ${resolved.baseURL || "default URL"}`);
+
+      const response = await client.chat.completions.create({
+        model: resolved.model,
+        messages: [{ role: "user", content: "Katakan 'OK' jika terhubung." }],
+        max_tokens: 25,
+      });
+
+      const reply = response.choices[0]?.message?.content?.trim() || "OK";
+      return {
+        success: true,
+        message: `Berhasil terhubung ke ${resolved.provider.toUpperCase()} (Model: ${resolved.model})! Respon: "${reply}"`,
+        provider: resolved.provider,
+        model: resolved.model,
+      };
+    } catch (err: any) {
+      this.logger.error("AI connection test failed", err);
+      let errMsg = err.message || "Gagal menghubungi AI provider";
+      if (err.status === 401) {
+        errMsg = "API Key tidak valid atau tidak memiliki akses (401 Unauthorized). Silakan cek API Key Anda.";
+      } else if (err.status === 402) {
+        errMsg = "Saldo / kredit di provider tidak mencukupi (402 Payment Required).";
+      } else if (err.status === 404) {
+        errMsg = `Model '${overrideConfig?.model || "tersebut"}' tidak ditemukan di provider (404 Not Found). Cek penulisan nama model.`;
+      }
+      return {
+        success: false,
+        message: errMsg,
+      };
     }
   }
 
-  async generateContent(input: GenerateContentInput): Promise<MarketingContent> {
-    if (!this.openai) return this.generateMockContent(input);
+  async generateContent(input: GenerateContentInput, workspaceId?: string): Promise<MarketingContent> {
+    const aiConfig = await this.getAiConfig(workspaceId);
+    if (!aiConfig) {
+      this.logger.warn("No AI API key found. Using built-in mock templates.");
+      return this.generateMockContent(input);
+    }
+
     try {
-      return await this.callOpenAI(input);
-    } catch (err) {
-      this.logger.error("AI content generation failed, using mock content", err);
+      return await this.callAiContent(input, aiConfig);
+    } catch (err: any) {
+      this.logger.error(`AI content generation failed (${err.message}), using mock content`, err);
       return this.generateMockContent(input);
     }
   }
 
-  private async callOpenAI(input: GenerateContentInput): Promise<MarketingContent> {
-    const model =
-      this.config.get<string>("OPENAI_MODEL") ||
-      this.config.get<string>("GEMINI_MODEL") ||
-      "gemini-2.5-flash";
+  private async callAiContent(input: GenerateContentInput, config: ResolvedAiConfig): Promise<MarketingContent> {
+    const client = this.createClient(config);
+    const model = config.model;
     const isIndonesian = input.language === "indonesian";
     const styleCues: Record<string, string> = {
       professional: "formal, professional, direct",
@@ -108,13 +271,30 @@ Respond ONLY with valid JSON:
   "coldCall": { "opening": "..." }
 }`;
 
-    const response = await this.openai!.chat.completions.create({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
-    });
-    return JSON.parse(response.choices[0].message.content!) as MarketingContent;
+    let rawContent = "";
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      });
+      rawContent = response.choices[0]?.message?.content || "";
+    } catch (formatErr: any) {
+      this.logger.warn(`json_object response_format failed (${formatErr?.message}), retrying without json_object constraint...`);
+      const response = await client.chat.completions.create({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+      });
+      rawContent = response.choices[0]?.message?.content || "";
+    }
+
+    let cleaned = rawContent.trim();
+    if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim();
+    }
+    return JSON.parse(cleaned) as MarketingContent;
   }
 
   generateMockContent(input: GenerateContentInput): MarketingContent {
@@ -149,13 +329,15 @@ Respond ONLY with valid JSON:
     };
   }
 
-  async generateWhatsAppColdMessage(input: GenerateWhatsAppInput): Promise<string> {
-    if (!this.openai) return this.generateMockWhatsAppMessage(input);
+  async generateWhatsAppColdMessage(input: GenerateWhatsAppInput, workspaceId?: string): Promise<string> {
+    const aiConfig = await this.getAiConfig(workspaceId);
+    if (!aiConfig) {
+      return this.generateMockWhatsAppMessage(input);
+    }
+
     try {
-      const model =
-        this.config.get<string>("OPENAI_MODEL") ||
-        this.config.get<string>("GEMINI_MODEL") ||
-        "gemini-2.5-flash";
+      const client = this.createClient(aiConfig);
+      const model = aiConfig.model;
       const isIndonesian = (input.language || "indonesian") === "indonesian";
       const toneMap: Record<string, string> = {
         professional: "formal, sopan, B2B, fokus solusi",
@@ -188,7 +370,7 @@ Kriteria pesan WhatsApp:
 
 PENTING: Balas HANYA dengan teks pesan WhatsApp saja tanpa tanda kutip, tanpa markdown code block, dan tanpa penjelasan tambahan.`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await client.chat.completions.create({
         model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
@@ -202,8 +384,8 @@ PENTING: Balas HANYA dengan teks pesan WhatsApp saja tanpa tanda kutip, tanpa ma
         }
       }
       return content || this.generateMockWhatsAppMessage(input);
-    } catch (err) {
-      this.logger.error("AI WhatsApp generation failed, using mock template", err);
+    } catch (err: any) {
+      this.logger.error(`AI WhatsApp generation failed (${err.message}), using mock template`, err);
       return this.generateMockWhatsAppMessage(input);
     }
   }
@@ -232,4 +414,3 @@ PENTING: Balas HANYA dengan teks pesan WhatsApp saja tanpa tanda kutip, tanpa ma
       : `Hi there from ${name}! 👋\n\nHope business is going great. Came across ${name}${input.rating ? ` (${input.rating}⭐)` : ""} and was really impressed by your profile! 👏\n\nWe help businesses grow and streamline leads through ${service}.\n\nWould you mind if I share a quick overview here on WhatsApp? No pressure at all 😊`;
   }
 }
-

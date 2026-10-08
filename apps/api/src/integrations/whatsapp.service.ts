@@ -260,7 +260,7 @@ export class WhatsAppService {
           yourService: lead.campaign?.yourService || "Solusi automasi & pertumbuhan bisnis",
           tone: options?.tone || "friendly",
           language: lead.campaign?.language || "indonesian",
-        });
+        }, lead.workspaceId || workspaceId);
       }
     }
 
@@ -326,7 +326,7 @@ export class WhatsAppService {
       tone: options?.tone || "friendly",
       language: lead.campaign?.language || "indonesian",
       customPrompt: options?.customPrompt,
-    });
+    }, workspaceId);
 
     const currentMarketing = (lead.marketingContent as any) || {};
     await this.prisma.lead.update({
@@ -415,7 +415,7 @@ export class WhatsAppService {
           yourService: lead.campaign?.yourService || "Solusi automasi",
           tone: options?.tone || "friendly",
           language: lead.campaign?.language || "indonesian",
-        });
+        }, workspaceId);
       }
 
       const directWaLink = buildDirectWaLink(cleanPhone, message);
@@ -495,7 +495,7 @@ export class WhatsAppService {
           tone: options?.tone || "friendly",
           language: lead.campaign?.language || "indonesian",
           customPrompt: options?.customPrompt,
-        });
+        }, workspaceId);
 
         const currentMarketing = (lead.marketingContent as any) || {};
         await this.prisma.lead.update({

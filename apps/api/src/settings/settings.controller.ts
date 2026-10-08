@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Body, Param, UseGuards } from "@nestjs/common";
 import { ApiTags, ApiOperation, ApiBearerAuth } from "@nestjs/swagger";
 import { SettingsService } from "./settings.service";
+import { MarketingAiService } from "../ai/marketing-ai.service";
 import { JwtGuard } from "../auth/jwt.guard";
 import { WorkspaceId } from "../auth/current-workspace.decorator";
 
@@ -9,7 +10,10 @@ import { WorkspaceId } from "../auth/current-workspace.decorator";
 @UseGuards(JwtGuard)
 @Controller("settings")
 export class SettingsController {
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(
+    private readonly settingsService: SettingsService,
+    private readonly marketingAiService: MarketingAiService,
+  ) {}
 
   @Get("integrations")
   @ApiOperation({ summary: "List workspace integrations" })
@@ -24,6 +28,15 @@ export class SettingsController {
     @Body() body: { type: string; name: string; config: Record<string, string> },
   ) {
     return this.settingsService.upsertIntegration(body.type, body.name, body.config, workspaceId);
+  }
+
+  @Post("ai/test")
+  @ApiOperation({ summary: "Test AI configuration connection" })
+  testAi(
+    @WorkspaceId() workspaceId: string,
+    @Body() body: { apiKey?: string; model?: string; baseURL?: string },
+  ) {
+    return this.marketingAiService.testConnection(workspaceId, body);
   }
 
   @Get("api-keys")

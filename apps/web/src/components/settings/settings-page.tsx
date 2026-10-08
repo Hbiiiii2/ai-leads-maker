@@ -59,6 +59,8 @@ export function SettingsPage() {
   const [showKey, setShowKey] = useState(false);
   const [savingIntegration, setSavingIntegration] = useState(false);
   const [savedIntegration, setSavedIntegration] = useState(false);
+  const [testingAi, setTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [keyPendingDelete, setKeyPendingDelete] = useState<ApiKey | null>(null);
   const [confirmDeleteWorkspace, setConfirmDeleteWorkspace] = useState(false);
@@ -167,6 +169,26 @@ export function SettingsPage() {
     }
   };
 
+  const testAiConnection = async () => {
+    setTestingAi(true);
+    setAiTestResult(null);
+    try {
+      const res = await api.post<{ success: boolean; message: string }>("/settings/ai/test", {
+        apiKey: openaiKey,
+        model: openaiModel,
+        baseURL: openaiBase,
+      });
+      setAiTestResult(res);
+    } catch (e: any) {
+      setAiTestResult({
+        success: false,
+        message: e instanceof Error ? e.message : "Gagal menguji koneksi AI provider",
+      });
+    } finally {
+      setTestingAi(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -229,7 +251,7 @@ export function SettingsPage() {
             <CardContent className="space-y-4">
               {/* Quick Presets */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Pilih Provider Preset:</Label>
+                <Label className="text-xs text-muted-foreground">Pilih Provider Preset Cepat:</Label>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -237,11 +259,35 @@ export function SettingsPage() {
                     size="sm"
                     className="text-xs h-8 bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary font-medium"
                     onClick={() => {
+                      setOpenaiModel("google/gemini-2.5-flash");
+                      setOpenaiBase("https://openrouter.ai/api/v1");
+                    }}
+                  >
+                    🌐 OpenRouter (Gemini Flash)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => {
+                      setOpenaiModel("openai/gpt-4o-mini");
+                      setOpenaiBase("https://openrouter.ai/api/v1");
+                    }}
+                  >
+                    🌐 OpenRouter (GPT-4o Mini)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => {
                       setOpenaiModel("gemini-2.5-flash");
                       setOpenaiBase("https://generativelanguage.googleapis.com/v1beta/openai/");
                     }}
                   >
-                    ✨ Google Gemini (Recommended)
+                    ✨ Google Gemini (Direct API)
                   </Button>
                   <Button
                     type="button"
@@ -255,29 +301,17 @@ export function SettingsPage() {
                   >
                     OpenAI (Direct)
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-8"
-                    onClick={() => {
-                      setOpenaiModel("google/gemini-2.5-flash");
-                      setOpenaiBase("https://openrouter.ai/api/v1");
-                    }}
-                  >
-                    OpenRouter
-                  </Button>
                 </div>
               </div>
 
               <Separator />
 
               <div className="space-y-2">
-                <Label>API Key (Gemini / OpenAI / OpenRouter)</Label>
+                <Label>API Key (OpenRouter / Gemini / OpenAI)</Label>
                 <div className="flex gap-2">
                   <Input
                     type={showKey ? "text" : "password"}
-                    placeholder="Masukkan API Key (contoh: AQ.Ab8... untuk Gemini atau sk-...)"
+                    placeholder="sk-or-v1-... (OpenRouter) atau AQ.Ab8... / sk-..."
                     value={openaiKey}
                     onChange={(e) => setOpenaiKey(e.target.value)}
                     className="flex-1 font-mono text-sm"
@@ -291,13 +325,16 @@ export function SettingsPage() {
                     {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Digunakan untuk pembuatan teks penawaran (Cold Outreach) dan analisa lead scoring AI.</p>
+                <p className="text-xs text-muted-foreground">Digunakan untuk pembuatan pesan penawaran otomatis dan scoring leads AI.</p>
               </div>
               <Separator />
               <div className="space-y-2">
-                <Label>Model</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Model</Label>
+                  <span className="text-[11px] text-muted-foreground">OpenRouter: prefix provider/model</span>
+                </div>
                 <Input
-                  placeholder="e.g. gemini-2.5-flash, gpt-4o-mini"
+                  placeholder="e.g. google/gemini-2.5-flash, openai/gpt-4o-mini"
                   value={openaiModel}
                   onChange={(e) => setOpenaiModel(e.target.value)}
                 />
@@ -306,22 +343,56 @@ export function SettingsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Base URL Endpoint</Label>
-                  <Badge variant="secondary" className="text-xs">Diperlukan untuk Gemini & OpenRouter</Badge>
+                  <Badge variant="secondary" className="text-xs">Wajib untuk OpenRouter & Gemini</Badge>
                 </div>
                 <Input
-                  placeholder="e.g. https://generativelanguage.googleapis.com/v1beta/openai/"
+                  placeholder="e.g. https://openrouter.ai/api/v1"
                   value={openaiBase}
                   onChange={(e) => setOpenaiBase(e.target.value)}
                 />
               </div>
-              <Button variant="gradient" onClick={saveAiIntegration} disabled={savingIntegration}>
-                {savingIntegration ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : savedIntegration ? (
-                  <Check className="mr-2 h-4 w-4" />
-                ) : null}
-                {savedIntegration ? "Saved!" : "Save AI config"}
-              </Button>
+
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={testAiConnection}
+                  disabled={testingAi}
+                >
+                  {testingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4 text-amber-500" />}
+                  {testingAi ? "Menguji Koneksi..." : "Test AI Connection"}
+                </Button>
+                <Button variant="gradient" onClick={saveAiIntegration} disabled={savingIntegration}>
+                  {savingIntegration ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : savedIntegration ? (
+                    <Check className="mr-2 h-4 w-4" />
+                  ) : null}
+                  {savedIntegration ? "Saved!" : "Save AI config"}
+                </Button>
+              </div>
+
+              {aiTestResult && (
+                <div
+                  className={`rounded-lg p-3 text-sm flex items-start gap-2.5 transition-all ${
+                    aiTestResult.success
+                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                      : "bg-destructive/10 text-destructive border border-destructive/30"
+                  }`}
+                >
+                  {aiTestResult.success ? (
+                    <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  ) : (
+                    <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-xs">
+                      {aiTestResult.success ? "Koneksi Berhasil Terhubung!" : "Koneksi Gagal"}
+                    </p>
+                    <p className="text-xs opacity-90">{aiTestResult.message}</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

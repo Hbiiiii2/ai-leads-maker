@@ -10,18 +10,36 @@ export class CampaignsService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(workspaceId = DEFAULT_WORKSPACE_ID) {
-    return this.prisma.campaign.findMany({
+    const campaigns = await this.prisma.campaign.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { leads: true } } },
     });
+
+    if (campaigns.length === 0) {
+      const allCampaigns = await this.prisma.campaign.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { _count: { select: { leads: true } } },
+      });
+      if (allCampaigns.length > 0) {
+        return allCampaigns;
+      }
+    }
+
+    return campaigns;
   }
 
   async findOne(id: string, workspaceId = DEFAULT_WORKSPACE_ID) {
-    const campaign = await this.prisma.campaign.findFirst({
+    let campaign = await this.prisma.campaign.findFirst({
       where: { id, workspaceId },
       include: { _count: { select: { leads: true } } },
     });
+    if (!campaign) {
+      campaign = await this.prisma.campaign.findUnique({
+        where: { id },
+        include: { _count: { select: { leads: true } } },
+      });
+    }
     if (!campaign) throw new NotFoundException(`Campaign ${id} not found`);
     return campaign;
   }

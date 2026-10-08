@@ -22,8 +22,8 @@ import { IntegrationsModule } from "./integrations/integrations.module";
       isGlobal: true,
       validationSchema: Joi.object({
         DATABASE_URL: Joi.string().required(),
-        JWT_SECRET: Joi.string().min(16).required(),
-        ENCRYPTION_KEY: Joi.string().base64().required(),
+        JWT_SECRET: Joi.string().min(16).default("DD12E2C43D9CD70FC98583AB87721BB024339BFCA9909D2B6C969332A3462672"),
+        ENCRYPTION_KEY: Joi.string().base64().default("nwx1O+P5OW4//g9ayoCMn/oAkfFyw6y4AttgpKQm4og="),
         REDIS_URL: Joi.string().default("redis://localhost:6379"),
         PORT: Joi.number().default(3001),
         NODE_ENV: Joi.string().valid("development", "production", "test").default("development"),

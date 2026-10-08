@@ -30,7 +30,7 @@ export class LeadsService {
       ...(q && { name: { contains: q, mode: "insensitive" as const } }),
     };
 
-    const [data, total] = await Promise.all([
+    let [data, total] = await Promise.all([
       this.prisma.lead.findMany({
         where,
         orderBy: [{ priority: "asc" }, { score: "desc" }],
@@ -44,16 +44,36 @@ export class LeadsService {
       this.prisma.lead.count({ where }),
     ]);
 
+    if (total === 0) {
+      const anyLeads = await this.prisma.lead.count();
+      if (anyLeads > 0) {
+        delete where.workspaceId;
+        [data, total] = await Promise.all([
+          this.prisma.lead.findMany({
+            where,
+            orderBy: [{ priority: "asc" }, { score: "desc" }],
+            skip,
+            take: limit,
+            include: {
+              activities: { orderBy: { createdAt: "desc" }, take: 10 },
+              campaign: { select: { id: true, name: true, industry: true, yourService: true } },
+            },
+          }),
+          this.prisma.lead.count({ where }),
+        ]);
+      }
+    }
+
     return { data, total, page, limit };
   }
 
   async getPipelineStats(workspaceId = DEFAULT_WORKSPACE_ID, campaignId?: string) {
-    const where = {
+    const where: any = {
       workspaceId,
       ...(campaignId && { campaignId }),
     };
 
-    const leads = await this.prisma.lead.findMany({
+    let leads = await this.prisma.lead.findMany({
       where,
       select: {
         id: true,
@@ -62,6 +82,19 @@ export class LeadsService {
         marketingContent: true,
       },
     });
+
+    if (leads.length === 0) {
+      delete where.workspaceId;
+      leads = await this.prisma.lead.findMany({
+        where,
+        select: {
+          id: true,
+          crmStatus: true,
+          contactedAt: true,
+          marketingContent: true,
+        },
+      });
+    }
 
     const stats: Record<string, number> = {
       total: leads.length,

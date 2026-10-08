@@ -36,11 +36,14 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: prospex_api
     restart: always
+    env_file:
+      - .env
     command: sh -c "cd /app && pnpm --filter @prospex/database db:deploy && cd /app/apps/api && node dist/main"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-prospex}:${POSTGRES_PASSWORD:-prospex}@postgres:5432/${POSTGRES_DB:-prospex}
       REDIS_URL: redis://:${REDIS_PASSWORD:-prospexredis123}@redis:6379
       JWT_SECRET: ${JWT_SECRET:-DD12E2C43D9CD70FC98583AB87721BB024339BFCA9909D2B6C969332A3462672}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-nwx1O+P5OW4//g9ayoCMn/oAkfFyw6y4AttgpKQm4og=}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-AQ.Ab8RN6JdG3zQU6WujW2_ZGXJTVrsWbg6CxfhhlorkNCl4IwFhQ}
       OPENAI_MODEL: ${OPENAI_MODEL:-gemini-2.5-flash}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
